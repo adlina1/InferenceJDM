@@ -4,7 +4,7 @@ import re
 import numpy as np
 
 
-# We download the source code to avoid making queries each time we want to use our system
+# We download the source code to avoid making queries each time we want to use our system.
 # with open("./codesourceInfoJDM.html") as fp:
 #     soup = BeautifulSoup(fp, 'html.parser')
 
