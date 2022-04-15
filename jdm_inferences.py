@@ -2,126 +2,172 @@ import requests
 from bs4 import BeautifulSoup
 import re, csv
 import numpy as np
-import os.path
+import os.path, sys
 import pandas as pd
 
 
 # User prompt
-inputTermA = "toto"
-inputTermB = ""
-# inputTermA = input("Entrez un premier terme: \n")
-# inputTermB = input("Entrez un second terme: \n")
-# inputRelation = input("Entrez une relation sémantique entre les deux précédents termes: \n")
+inputTermA = input("Entrez un premier terme: \n")
+inputTermB = input("Entrez un second terme: \n")
+inputRelation = input("Entrez une relation sémantique entre les deux précédents termes: \n")
 
-filenameEntry = f"{inputTermA}_KBE.csv"
-filenameRelation = f"{inputTermA}_KBR.csv"
+# ordre correct : ia, ir, ib
+def getPreprocessedKB(iA, iB, iR):
 
-# print(f"Asking system for {inputTermA} {inputRelation} {inputTermB}...")
+    inputTermA = iA
+    inputTermB = iB
+    inputRelation = iR
 
-# Parsing of the JDM lexical network DUMP on a given input Term
-vgm_url = f'http://www.jeuxdemots.org/rezo-dump.php?gotermsubmit=Chercher&gotermrel={inputTermA}&rel='
-html_text = requests.get(vgm_url).text
-soup = BeautifulSoup(html_text, 'html.parser')
+    filenameEntry = f"{inputTermA}_KBE.csv"
+    filenameRelation = f"{inputTermA}_KBR.csv"
 
-# Check if the file already exists to avoid making queries each time we want to use our system
-file_existsE = os.path.exists(filenameEntry)
-file_existsR = os.path.exists(filenameRelation)
-if (file_existsE == True):
-    os.remove(filenameEntry)
-    #mettre tout le reste du code ici
+    # print(f"Asking system for {inputTermA} {inputRelation} {inputTermB}...")
 
-# Taking everything starting from the code balise
-page = soup.find('code').getText()
+    # Parsing of the JDM lexical network DUMP on a given input Term
+    vgm_url = f'http://www.jeuxdemots.org/rezo-dump.php?gotermsubmit=Chercher&gotermrel={inputTermA}&rel='
+    html_text = requests.get(vgm_url).text
+    soup = BeautifulSoup(html_text, 'html.parser')
 
-# RegEx patterns for preprocessing 
-commentsPattern = "^\/\/ *.*"
-behindNodePattern = "(?s)^.*?(?=e;)"
-behindNodePatternRelations = "(?s)^.*?(?=r;)"
-blankLinesPattern = "^\s*$"
+    # Check if the file already exists to avoid making queries each time we want to use our system
+    file_existsE = os.path.exists(filenameEntry)
+    file_existsR = os.path.exists(filenameRelation)
+    if (file_existsE == True):
+        os.remove(filenameEntry)
+        #mettre tout le reste du code ici
 
-# ENTRIES PREPROCESSING
-prepro1 = re.sub(behindNodePattern, '', page) # Delete all what's behind the first nodes e;[...]
-prepro2 = re.sub(commentsPattern, '', prepro1, flags=re.MULTILINE) # Delete all the comments (whitespace can be seen as \s in regex.) 
-prepro3 = re.sub("((r;.*)|(rt;.*))", '', prepro2) # Delete relations, relations types, blank lines
-entries = re.sub(blankLinesPattern, '', prepro3, flags=re.MULTILINE) 
-# print(entries) 
+    # Taking everything starting from the code balise
+    page = soup.find('code').getText()
 
-# RELATIONS PREPROCESSING
-pp1 = re.sub(behindNodePatternRelations, '', page)
-relations = re.sub(commentsPattern, '', pp1, flags=re.MULTILINE)
-# print(relations)
+    # RegEx patterns for preprocessing 
+    commentsPattern = "^\/\/ *.*"
+    behindNodePattern = "(?s)^.*?(?=e;eid)"
+    behindNodePatternRelations = "(?s)^.*?(?=r;rid)"
+    blankLinesPattern = "^\s*$"
+
+    # ENTRIES PREPROCESSING
+    prepro1 = re.sub(behindNodePattern, '', page) # Delete all what's behind the first nodes e;[...]
+    prepro2 = re.sub(commentsPattern, '', prepro1, flags=re.MULTILINE) # Delete all the comments (whitespace can be seen as \s in regex.) 
+    prepro3 = re.sub("((r;.*)|(rt;.*))", '', prepro2) # Delete relations, relations types, blank lines
+    entries = re.sub(blankLinesPattern, '', prepro3, flags=re.MULTILINE) 
+    # print(entries) 
+
+    # RELATIONS PREPROCESSING
+    pp1 = re.sub(behindNodePatternRelations, '', page)
+    relations = re.sub(commentsPattern, '', pp1, flags=re.MULTILINE)
+    # print(relations)
+
+    # Debug to redirect to a log file
+    # print(page) 
+
+    # Make this as a list
+    textEntry = entries.split("\n")
+    textRelation = relations.split("\n")
+
+    # Removing single quote from the list
+    for singleQuote in range(0,len(textEntry)):
+        textEntry[singleQuote] = textEntry[singleQuote].replace("'","")
+
+    for singleQuote in range(0,len(textRelation)):
+        textRelation[singleQuote] = textRelation[singleQuote].replace("'","")
 
 
+    # Convert raw data into semi-structured data (in this case csv format file) and save it.
+    np.savetxt(filenameEntry, textEntry, delimiter =",", fmt ='%s')
+    np.savetxt(filenameRelation, textRelation, delimiter =",", fmt ='%s')
 
-# Debug to redirect to a log file
-# print(page) 
+    dfEntry = pd.read_csv(filenameEntry, on_bad_lines='skip', delimiter=';')
+    dfRelation = pd.read_csv(filenameRelation, on_bad_lines='skip', delimiter=';')
 
-# Make this as a list
-textEntry = entries.split("\n")
-textRelation = relations.split("\n")
-
-# Removing single quote from the list
-for singleQuote in range(0,len(textEntry)):
-    textEntry[singleQuote] = textEntry[singleQuote].replace("'","")
-
-for singleQuote in range(0,len(textRelation)):
-    textRelation[singleQuote] = textRelation[singleQuote].replace("'","")
-
-
-# Convert raw data into semi-structured data (in this case csv format file) and save it.
-np.savetxt(filenameEntry, textEntry, delimiter =",", fmt ='%s')
-np.savetxt(filenameRelation, textRelation, delimiter =",", fmt ='%s')
-
-dfEntry = pd.read_csv(filenameEntry, on_bad_lines='skip', delimiter=';')
-dfRelation = pd.read_csv(filenameRelation, on_bad_lines='skip', delimiter=';')
-
-# print(df.columns)
-# print(dfRelation[:5])
-# print(dfRelation.loc[dfRelation['type']==6].node2.iloc[0]) # r entrante
-# print(len(dfEntry.loc[dfEntry['type']==4]))
+    return dfRelation, dfEntry # not the purpose of the function but need them outside of the function (return a tuple)
 
 
 
 # un terme peut avoir plusieurs génériques, en conséquence, itérer: chercher le 1er voir si r_agent positif,
 # si oui, retourner oui termA peut ... sinon chercher le 2eme, voir si r_agent positif, sinon.. jusqu'à n 
+# un chat peut-il voler?
+# toto peut-il parler?
 
-# All the "is-a" (type=6) relations of the term given in input
-nbGenerics = len(dfRelation.loc[dfRelation['type']==6].node2)
+# All the "is-a" (type=6) relations of the term given in input (for DEDUCTIVE INFERENCE)
+df = getPreprocessedKB(inputTermA, inputTermB, inputRelation)
+# df[0] = Relation 
+# df[1] = Entry
+nbGenerics = len(df[0].loc[df[0]['type']==6].node2) 
+#chercher le type dans les relations, pas entry
 
-
-# For each generic of our input term, we check all their r_agent (type=24) and see if it corresponds to the input relation 
-for i in range(nbGenerics - 58):
+# For each generic of our input term, we check all their r_agent (type=24) and see if it corresponds to the input termB 
+for i in range(nbGenerics):
     
-    # We take the generic
-    check = dfEntry.loc[dfEntry['eid']==dfRelation.loc[dfRelation['type']==6].node2.iloc[i]]
+    # We take all the generics of our inputTerm
+    check = df[1].loc[df[1]['eid']==df[0].loc[df[0]['type']==6].node2.iloc[i]]
     new_term = check.name.values[0]
+    
+    print(f"\nTaking into account:\n{check} \n")
 
-    fileName = f"{new_term}_KBR.csv"
-    file_exists = os.path.exists(fileName)
+    fileNameR = f"{new_term}_KBR.csv"
+    fileNameE = f"{new_term}_KBE.csv"
+    file_existsR = os.path.exists(fileNameR)
+    file_existsE = os.path.exists(fileNameE)
 
+
+#test if inputrelation == 
+# if type == 6 etc
+
+    
     # Avoid making queries each time we want to use our system
-    if (file_exists == True):
-        dfTerm = pd.read_csv(fileName, on_bad_lines='skip', delimiter=';')
+    if (file_existsR == True & file_existsE == True):
+        print("File exists, processing...")
+        dfTermE = pd.read_csv(fileNameE, on_bad_lines='skip', delimiter=';')
+        dfTermR = pd.read_csv(fileNameR, on_bad_lines='skip', delimiter=';')
+
+        # print(dfTermE.name.values[1])
+        # print(dfTermR.loc[dfTermR['type']==24].node2)
+        # print("CHECKING : ",dfTermE.loc[dfTermE['eid']==indexOfInterest].name.values[0])
+        # print("======",indexOfInterest[0])
+
+        # We take all the id's of the r_agent relation of the generic
+        indexOfInterest = dfTermR.loc[dfTermR['type']==24].node2.values 
+
         # We search for all the r_agent relations of the first generic (index i)
-        for j in range(len(dfTerm.loc[dfTerm['type']==24])):
+        print(dfTermE)
+        for j in range(len(dfTermR.loc[dfTermR['type']==24])):
             # At the first matching with the termB (e.g voler), then it succeeds
-            if(dfTerm.loc[dfTerm['type']==24].name.values[j] == inputTermB):
-                print("true")
+            if(dfTermE.loc[dfTermE['eid']==indexOfInterest[j]].name.values[0] == inputTermB):
+                print("true",j)
             # Otherwise if none of them match then we can infer it's false
             else:
-                print("false")
+                print("false for", indexOfInterest[j])
 
     # If the file doesn't exist
     else:
-        new_url = f'http://www.jeuxdemots.org/rezo-dump.php?gotermsubmit=Chercher&gotermrel={new_term}&rel='
-        html_txt = requests.get(new_url).text
-        soup = BeautifulSoup(html_txt, 'html.parser')
-        paGe = soup.find('code').getText()
+        print("\n--Don't have the term, processing to get the new KB...--\n")
+        
+        new_df = getPreprocessedKB(new_term, inputTermB, inputRelation)
+   
+        new_fileNameR = f"{new_term}_KBR.csv"
+        new_fileNameE = f"{new_term}_KBE.csv"
+        dfRelation_new = pd.read_csv(new_fileNameR, on_bad_lines='skip', delimiter=';')
+        dfEntry_new = pd.read_csv(new_fileNameE, on_bad_lines='skip', delimiter=';')
 
-        print("later")
-        #mettre tt ce qui a été fait au dessus, parser le fichier etc, le sauvegarder 
-        # faire une fonction (bcp plus simple)
-        # rajouter un nouveau filenameEntry = f"{inputTermA}_KBE.csv"
+      
+        indexOfInterest2 = dfRelation_new.loc[dfRelation_new['type']==24].node2.values 
+        print("INDEX OF INTEREST : ", indexOfInterest2)
+
+        print(dfEntry_new)
+        for k in range(len(dfRelation_new.loc[dfRelation_new['type']==24])):
+            if(dfEntry_new.loc[dfEntry_new['eid']==indexOfInterest2[k]].name.values[0] == inputTermB):
+                print(f"\n\n->Answer : Un {inputTermA} est un {new_term} et un {new_term} peut {inputTermB}. Donc un {inputTermA} peut {inputTermB}.")
+                sys.exit("A solution has been encountered, program finished.")     
+            else:
+                print("false for", indexOfInterest2[k])
+
+
+                # TODO yet : 
+                # corriger le bug KeyError: 'type', 'eid'
+                # ajouter l'answer dans le cas ou le fichier exite
+                # faire la négation 
+                # ajouter le inputrelation dans le prompt
+                # essayer avec des termes qui ont relation sortantes/entrantes
+        
 
 
 
