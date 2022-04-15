@@ -28,13 +28,6 @@ def getPreprocessedKB(iA, iB, iR):
     html_text = requests.get(vgm_url).text
     soup = BeautifulSoup(html_text, 'html.parser')
 
-    # Check if the file already exists to avoid making queries each time we want to use our system
-    file_existsE = os.path.exists(filenameEntry)
-    file_existsR = os.path.exists(filenameRelation)
-    if (file_existsE == True):
-        os.remove(filenameEntry)
-        #mettre tout le reste du code ici
-
     # Taking everything starting from the code balise
     page = soup.find('code').getText()
 
@@ -54,7 +47,6 @@ def getPreprocessedKB(iA, iB, iR):
     # RELATIONS PREPROCESSING
     pp1 = re.sub(behindNodePatternRelations, '', page)
     relations = re.sub(commentsPattern, '', pp1, flags=re.MULTILINE)
-    # print(relations)
 
     # Debug to redirect to a log file
     # print(page) 
@@ -86,13 +78,24 @@ def getPreprocessedKB(iA, iB, iR):
 # si oui, retourner oui termA peut ... sinon chercher le 2eme, voir si r_agent positif, sinon.. jusqu'à n 
 # un chat peut-il voler?
 # toto peut-il parler?
+#chercher le type dans les relations, pas entry
+# à la fin on lancera toutes les inférences sans demander quoi que ce soit à l'user donc pas de test pour savoir si inférence en particulier
+# tester nager, dormir, se nourrir
+
+
+
+
+
+
+
+
 
 # All the "is-a" (type=6) relations of the term given in input (for DEDUCTIVE INFERENCE)
 df = getPreprocessedKB(inputTermA, inputTermB, inputRelation)
+solutionFound = 0
+nbGenerics = len(df[0].loc[df[0]['type']==6].node2) 
 # df[0] = Relation 
 # df[1] = Entry
-nbGenerics = len(df[0].loc[df[0]['type']==6].node2) 
-#chercher le type dans les relations, pas entry
 
 # For each generic of our input term, we check all their r_agent (type=24) and see if it corresponds to the input termB 
 for i in range(nbGenerics):
@@ -108,31 +111,26 @@ for i in range(nbGenerics):
     file_existsR = os.path.exists(fileNameR)
     file_existsE = os.path.exists(fileNameE)
 
-
-#test if inputrelation == 
-# if type == 6 etc
-
-    
     # Avoid making queries each time we want to use our system
     if (file_existsR == True & file_existsE == True):
         print("File exists, processing...")
         dfTermE = pd.read_csv(fileNameE, on_bad_lines='skip', delimiter=';')
         dfTermR = pd.read_csv(fileNameR, on_bad_lines='skip', delimiter=';')
 
-        # print(dfTermE.name.values[1])
-        # print(dfTermR.loc[dfTermR['type']==24].node2)
-        # print("CHECKING : ",dfTermE.loc[dfTermE['eid']==indexOfInterest].name.values[0])
-        # print("======",indexOfInterest[0])
+        # Test if dataset empty, it can indeed be, because sometimes beautifulsoup fails to parse some terms
+        if(dfTermR.empty):
+            continue
 
         # We take all the id's of the r_agent relation of the generic
         indexOfInterest = dfTermR.loc[dfTermR['type']==24].node2.values 
 
         # We search for all the r_agent relations of the first generic (index i)
-        print(dfTermE)
         for j in range(len(dfTermR.loc[dfTermR['type']==24])):
             # At the first matching with the termB (e.g voler), then it succeeds
             if(dfTermE.loc[dfTermE['eid']==indexOfInterest[j]].name.values[0] == inputTermB):
-                print("true",j)
+                solutionFound += 1
+                print(f"\n\n->Answer : Un(e) {inputTermA} est un(e) {new_term} et un(e) {new_term} peut {inputTermB}. Donc un(e) {inputTermA} PEUT {inputTermB}.")
+                sys.exit("A solution has been encountered, program finished.")                 
             # Otherwise if none of them match then we can infer it's false
             else:
                 print("false for", indexOfInterest[j])
@@ -148,26 +146,31 @@ for i in range(nbGenerics):
         dfRelation_new = pd.read_csv(new_fileNameR, on_bad_lines='skip', delimiter=';')
         dfEntry_new = pd.read_csv(new_fileNameE, on_bad_lines='skip', delimiter=';')
 
-      
+        if(dfRelation_new.empty):
+            continue
+
         indexOfInterest2 = dfRelation_new.loc[dfRelation_new['type']==24].node2.values 
         print("INDEX OF INTEREST : ", indexOfInterest2)
 
         print(dfEntry_new)
         for k in range(len(dfRelation_new.loc[dfRelation_new['type']==24])):
             if(dfEntry_new.loc[dfEntry_new['eid']==indexOfInterest2[k]].name.values[0] == inputTermB):
-                print(f"\n\n->Answer : Un {inputTermA} est un {new_term} et un {new_term} peut {inputTermB}. Donc un {inputTermA} peut {inputTermB}.")
+                solutionFound += 1
+                print(f"\n\n->Answer : Un(e) {inputTermA} est un(e) {new_term} et un(e) {new_term} peut {inputTermB}. Donc un(e) {inputTermA} PEUT {inputTermB}.")
                 sys.exit("A solution has been encountered, program finished.")     
             else:
                 print("false for", indexOfInterest2[k])
 
+# If we can't deduce something, by default, it takes the last generic of our input term A, and based on it, says it returns no/false.
+if(solutionFound == 0):
+    print(f"\n\n->Answer : Un(e) {inputTermA} est un(e) {new_term} et un(e) {new_term} ne peut pas {inputTermB}. Donc un(e) {inputTermA} NE PEUT PAS {inputTermB}.")
 
-                # TODO yet : 
-                # corriger le bug KeyError: 'type', 'eid'
-                # ajouter l'answer dans le cas ou le fichier exite
-                # faire la négation 
-                # ajouter le inputrelation dans le prompt
+
+                # TODO  : 
+                # (2) ajouter le inputrelation dans le prompt (une fois que + d'1 inférence sera faite)
+                # (1) commencer inférence transitive
                 # essayer avec des termes qui ont relation sortantes/entrantes
-        
+            
 
 
 
@@ -179,7 +182,6 @@ for i in range(nbGenerics):
 
 # inférence déductive : termeA r_agent termeB -> termA isA [xx]  &&&&&&  [xx] r_agent termB
 #                               oui car pigeon r_isa oiseau et oiseau r_agent-1 voler
-
 
 # les noeuds/termes (Entries) :
 # chat
