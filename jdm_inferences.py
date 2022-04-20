@@ -244,8 +244,9 @@ if(inputRelation == '8'):
     # We iterate on the hyponyms of our input term
     for hypo in range(0, nbSpecifics):
 
-        if(hypo ==2):
-            break
+        # Debug        
+        # if(hypo ==10):
+        #     break
 
         specificDF = pd.DataFrame() 
         try:
