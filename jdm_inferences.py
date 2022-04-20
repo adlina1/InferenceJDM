@@ -12,29 +12,28 @@ inputTermB = input("Entrez un second terme: \n")
 
 print("\n   ##################################################################\n\
  |  Tapez (6) pour une inférence déductive (relation is_a)           |\n \
-|  Tapez (15) pour une inférence transitive (relation r_lieu, ...)  |\n \
-|  Tapez (8) pour une inférence inductive (relation r_holo)          |\n\
+|  Tapez (9) ou (28) pour une inférence transitive (r_lieu,haspart..)|\n \
+|  Tapez (8) pour une inférence inductive (relation r_holo)         |\n\
    ##################################################################\n\n")
 
 inputRelation = input("Entrez une relation sémantique entre les deux précédents termes: \n")
 
-while (inputRelation not in ['6','15','8']):
+while (inputRelation not in ['6','8','9','28']):
     inputRelation = input("Erreur, veuillez rentrer un numéro d'inférence valide: \n")
 
+correspondance = {'6': "deductive inference", '9': "transitive inference", '28': "transitive inference", '8':"inductive inference", }
 
+print(f"Asking system for a {correspondance[inputRelation]} between \"{inputTermA}\" and \"{inputTermB}\"...")
 
 
 # Preprocessing
-def getPreprocessedKB(iA, iB, iR):
+def getPreprocessedKB(iA, iR):
 
     inputTermA = iA
-    inputTermB = iB
     inputRelation = iR
 
     filenameEntry = f"{inputTermA}_KBE.csv"
     filenameRelation = f"{inputTermA}_KBR.csv"
-
-    print(f"Asking system for {inputTermA} {inputRelation} {inputTermB}...")
 
     # Parsing of the JDM lexical network DUMP on a given input Term
     if(inputRelation == '6'):
@@ -103,7 +102,7 @@ def getPreprocessedKB(iA, iB, iR):
 
 
 
-dfRelation, dfEntry = getPreprocessedKB(inputTermA, inputTermB, inputRelation)
+dfRelation, dfEntry = getPreprocessedKB(inputTermA, inputRelation)
 solutionFound = 0
 
 
@@ -117,6 +116,9 @@ if(inputRelation == '6'):
 
     # The number of generics for a given inputTermA
     nbGenerics = len(dfRelation.loc[dfRelation['type']==6].node2) 
+
+    # To iterate on the highest weights
+    # dfRelation['w'].sort_values(ascending=False)
 
     # All the "is-a" (type=6) relations of the term given in input (for DEDUCTIVE INFERENCE)
     # For each generic of our input term, we check all their r_agent (type=24) and see if it corresponds to the input termB 
@@ -173,38 +175,54 @@ if(inputRelation == '6'):
         # If we haven't yet the terms in our knowledge base (files doesn't existb)
         else:
             print("\n--Don't have the term, processing to get the new KB...--\n")
+            dfRelation_new = pd.DataFrame() 
+            dfEntry_new = pd.DataFrame() 
 
-            
-            new_df = getPreprocessedKB(genericName, inputTermB, inputRelation)
-    
+
+            try:
+                new_df = getPreprocessedKB(genericName, inputRelation)
+            except:
+                pass
+
             new_fileNameR = f"{genericName}_KBR.csv"
             new_fileNameE = f"{genericName}_KBE.csv"
-            dfRelation_new = pd.read_csv(new_fileNameR, on_bad_lines='skip', delimiter=';')
-            dfEntry_new = pd.read_csv(new_fileNameE, on_bad_lines='skip', delimiter=';')
 
-            if(dfRelation_new.empty):
-                continue
+            try:
+                dfRelation_new = pd.read_csv(new_fileNameR, on_bad_lines='skip', delimiter=';')
+                dfEntry_new = pd.read_csv(new_fileNameE, on_bad_lines='skip', delimiter=';')
 
-            indexOfInterest2 = dfRelation_new.loc[dfRelation_new['type']==24].node2.values 
-            print("INDEX OF INTEREST : ", indexOfInterest2)
+                if(dfRelation_new.empty | dfEntry_new.empty):
+                    continue
 
-            print(dfEntry_new)
-            for k in range(len(dfRelation_new.loc[dfRelation_new['type']==24])):
-                if(dfEntry_new.loc[dfEntry_new['eid']==indexOfInterest2[k]].name.values[0] == inputTermB):
-                    solutionFound += 1
-                    print(f"\n\n->Answer : Un(e) {inputTermA} est un(e) {genericName} et un(e) {genericName} peut {inputTermB}. Donc un(e) {inputTermA} PEUT {inputTermB}.")
-                    sys.exit("A solution has been encountered, program finished.")     
-                else:
-                    print("false for", indexOfInterest2[k])
+                indexOfInterest2 = dfRelation_new.loc[dfRelation_new['type']==24].node2.values 
+                print("INDEX OF INTEREST : ", indexOfInterest2)
+            except:
+                pass
 
+
+
+            try:
+                for k in range(len(dfRelation_new.loc[dfRelation_new['type']==24])):
+                    if(dfEntry_new.loc[dfEntry_new['eid']==indexOfInterest2[k]].name.values[0] == inputTermB):
+                        print("solution found")
+                        solutionFound += 1
+                        print(f"\n\n->Answer : Un(e) {inputTermA} est un(e) {genericName} et un(e) {genericName} peut {inputTermB}. Donc un(e) {inputTermA} PEUT {inputTermB}.")
+                        sys.exit("A solution has been encountered, program finished.")     
+                    else:
+                        print("false for", indexOfInterest2[k])
+            except:
+                pass
+
+           
 
 
 
     # If we can't deduce something, by default, it takes the last generic of our input term A, and based on it, says it returns no/false.
-    if(solutionFound == 0):
-        print(f"\n\n->Answer : Un(e) {inputTermA} est un(e) {genericName} et un(e) {genericName} ne peut pas {inputTermB}. Donc un(e) {inputTermA} NE PEUT PAS {inputTermB}.")
-
-
+    try:
+        if(solutionFound == 0):
+            print(f"\n\n->Answer : Un(e) {inputTermA} est un(e) {genericName} et un(e) {genericName} ne peut pas {inputTermB}. Donc un(e) {inputTermA} NE PEUT PAS {inputTermB}.")
+    except:
+        print("The term hasn't generics. Program finished")
 
 
 #####################################################
@@ -220,17 +238,25 @@ if(inputRelation == '8'):
     nbSpecifics = len(dfRelation.loc[dfRelation['type']==8].node2) 
     print(nbSpecifics)
 
+    # To iterate on the highest weights
+    dfRelation['w'].sort_values(ascending=False)
+
     # We iterate on the hyponyms of our input term
     for hypo in range(0, nbSpecifics):
 
+        if(hypo ==2):
+            break
+
         specificDF = pd.DataFrame() 
         try:
-            specificDF = dfEntry[dfEntry['eid'] == dfRelation[(dfRelation['type']==8) & (dfRelation['w']>=30)] .node2.iloc[hypo]]
+            specificDF = dfEntry[dfEntry['eid'] == dfRelation[(dfRelation['type']==8) & (dfRelation['w']>=0)] .node2.iloc[hypo]]
         except:
             pass
 
         if not specificDF.empty:
             specificName = specificDF.name.values[0]
+        else:
+            continue
         
        
         print(f"\nTaking into account:\n{specificDF} \n")
@@ -250,7 +276,7 @@ if(inputRelation == '8'):
 
             
             # on a que le df avec les 8 on veut celui avec tout donc on rappl la fcnt avec les mm param excepté n° de fctn
-            dfTermR, dfTermE = getPreprocessedKB(inputTermA, inputTermB, '')
+            dfTermR, dfTermE = getPreprocessedKB(inputTermA, '')
             # We take all the id's of the r_agent relation of the specific
             indexOfInterest = dfTermR.loc[dfTermR['type']==24].node2.values 
 
@@ -274,7 +300,7 @@ if(inputRelation == '8'):
             dfRelation_new = pd.DataFrame() 
 
             try:
-                new_df = getPreprocessedKB(specificName, inputTermB, inputRelation)
+                new_df = getPreprocessedKB(specificName, inputRelation)
             
 
                 new_fileNameR = f"{specificName}_KBR.csv"
@@ -292,7 +318,7 @@ if(inputRelation == '8'):
             indexOfInterest2 = dfRelation_new.loc[dfRelation_new['type']==24].node2.values 
             print("INDEX OF INTEREST : ", indexOfInterest2)
 
-            print(dfEntry_new)
+            print("CHECK", dfRelation_new)
             for k in range(len(dfRelation_new.loc[dfRelation_new['type']==24])):
                 print("hello")
                 if(dfEntry_new.loc[dfEntry_new['eid']==indexOfInterest2[k]].name.values[0] == inputTermB):
@@ -305,6 +331,46 @@ if(inputRelation == '8'):
     if(solutionFound == 0):
         print(f"\n\n->Answer : Un(e) {inputTermA} est un(e) {specificName} et un(e) {specificName} ne peut pas {inputTermB}. Donc un(e) {inputTermA} NE PEUT PAS {inputTermB}.")
 
+
+
+
+
+#####################################################
+##################### TRANSITIVITÉ ##################
+#####################################################
+
+if (inputRelation in ['9','28']):
+
+    if inputRelation in [9]:
+        inputTermA,inputTermB = inputTermB,inputTermA
+
+    dfRelation, dfEntry = getPreprocessedKB(inputTermA, inputRelation)
+    dfRelation = dfRelation.sort_values(by='w', ascending=False)
+    node2ids = np.array(dfRelation.node2.values)
+    node2names = dfEntry.set_index("eid").loc[node2ids,['name']].values.flatten()
+
+    for name in node2names:
+        print(name)
+
+    try:
+        dfNewRelation, dfNewEntry = getPreprocessedKB(name, inputRelation)
+        dfNewRelation = dfNewRelation.sort_values(by='w', ascending=False)
+        node2ids_bis = np.array(dfNewRelation.node2.values)
+        node2names_bis = dfNewEntry.set_index("eid").loc[node2ids_bis,['name']].values.flatten()
+        
+        if inputTermB in node2names_bis:
+            if inputRelation in [9]:        
+                inputTermA,inputTermB = inputTermB,inputTermA
+
+        print(inputTermA ," relation n°", inputRelation, inputTermB, " => oui car ", inputTermA ," relation n° ",inputRelation, name, " et ",name ," relation n° ", inputRelation, inputTermB)
+
+    except:
+        pass
+
+        print(inputTermA, inputRelation, inputTermB, " => non à priori aucune relation à distance 2 trouvée")
+
+
+
 """ Note perso:
-certains termes ne sont pas requetables, exemple "entreprise" , "homme" il a donc fallu traiter ces exceptions
+Certains termes ne sont pas requétables, exemple "entreprise" , "homme" il a donc fallu traiter ces exceptions
 """
