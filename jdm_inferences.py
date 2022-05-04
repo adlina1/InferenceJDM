@@ -90,7 +90,7 @@ def fileExists(nameTerm):
     if (file_existsR == True & file_existsE == True):
         return True, fileNameR, fileNameE
     else:
-        return False
+        return False, fileNameR, fileNameE
 
 def main():
 
@@ -118,7 +118,6 @@ def main():
     while (inferenceType not in ['1','2','3']):
         inferenceType = input("Erreur, veuillez rentrer un numéro d'inférence valide: \n")
 
-    polyTerm = ""
     count = 0
     
     #####################################################
@@ -145,11 +144,13 @@ def main():
                 exists, fileNameR, fileNameE = fileExists(name)
                 if (exists == True):
                     print("Term exists, processing...")
-                    dfNewEntry = pd.read_csv(fileNameE, on_bad_lines='skip', delimiter=';')
-                    dfNewRelation = pd.read_csv(fileNameR, on_bad_lines='skip', delimiter=';')
+                    # dfNewEntry = pd.read_csv(fileNameE, on_bad_lines='skip', delimiter=';')
+                    # dfNewRelation = pd.read_csv(fileNameR, on_bad_lines='skip', delimiter=';')
+                    dfNewRelation, dfNewEntry = getPreprocessedKB(name, relationType)
+                    # print(dfNewRelation)
                 else:
                     print("Term doesn't exist, querying...")
-                dfNewRelation, dfNewEntry = getPreprocessedKB(name, relationType)
+                    dfNewRelation, dfNewEntry = getPreprocessedKB(name, relationType)
 
                 dfNewRelation = dfNewRelation.sort_values(by='w ', ascending=False)
                 nodeIds_bis = np.array(dfNewRelation.node2.values)
@@ -174,10 +175,11 @@ def main():
             except:
                 pass
         print("\n->Question : ",inputTermA, relationType, inputTermB, "\n->Answer => Non, à priori il n'y a pas d'explication pour cela")
-        return
+        
 
 
     if (inferenceType == '2'):     
+
         dfRelation, dfEntry = getPreprocessedKB(inputTermA, '8')
         dfRelation = dfRelation.sort_values(by='w ', ascending=False)
         nodeIds = np.array(dfRelation.node2.values)
@@ -188,7 +190,7 @@ def main():
             start = time.time()
             print("\nSearching specifics ... - Found: ",name)
             if name == inputTermB:
-                print("\n->Question : ",inputTermA ,relationType, inputTermB, "\n->Answer => Oui c'est possible car ", inputTermA ,relationType, name, " et ",name , relationType, inputTermB)
+                print("\n->Question : ",inputTermA ,relationType, inputTermB, "\n->Answer => Oui c'est possible car ", inputTermA ,"r_hypo", name, " et ",name , relationType, inputTermB)
                 return
 
             try:
@@ -198,8 +200,8 @@ def main():
                     dfNewEntry = pd.read_csv(fileNameE, on_bad_lines='skip', delimiter=';')
                     dfNewRelation = pd.read_csv(fileNameR, on_bad_lines='skip', delimiter=';')
                 else:
-                    dfNewRelation, dfNewEntry = getPreprocessedKB(name, relationType)
                     print("->Term doesn't exist, querying...")
+                    dfNewRelation, dfNewEntry = getPreprocessedKB(name, relationType)
 
                 dfNewRelation = dfNewRelation.sort_values(by='w ', ascending=False)
                 nodeIds_bis = np.array(dfNewRelation.node2.values)
@@ -219,12 +221,12 @@ def main():
                         inputTermA,inputTermB = inputTermB,inputTermA
                     if '>' in name:
                         name = getPolysemicTerm(dfEntry, name)    
-                    print("\n->Question : ",inputTermA ,relationType, inputTermB, "\n->Answer => Oui c'est possible car ", inputTermA , "r_isa" , name, " et ",name, relationType, inputTermB)
+                    print("\n->Question : ",inputTermA ,relationType, inputTermB, "\n->Answer => Oui c'est possible car ", inputTermA , "r_hypo" , name, " et ",name, relationType, inputTermB)
                     return             
             except:
                 pass
         print("\n->Question : ",inputTermA, relationType, inputTermB, "\n->Answer => Non, à priori il n'y a pas d'explication pour cela")
-        return
+        
 
     #####################################################
     ##################### TRANSITIVITÉ ##################
@@ -249,13 +251,14 @@ def main():
 
             try:
                 exists, fileNameR, fileNameE = fileExists(name)
+                print("exists:", exists)
                 if (exists == True):
                     print("Term exists, processing...")
                     dfNewEntry = pd.read_csv(fileNameE, on_bad_lines='skip', delimiter=';')
                     dfNewRelation = pd.read_csv(fileNameR, on_bad_lines='skip', delimiter=';')  
                 else:
                     print("Term doesn't exist, querying...")
-                dfNewRelation, dfNewEntry = getPreprocessedKB(name, relationType)
+                    dfNewRelation, dfNewEntry = getPreprocessedKB(name, relationType)
                 
                 dfNewRelation = dfNewRelation.sort_values(by='w ', ascending=False)
                 nodeIds_bis = np.array(dfNewRelation.node2.values)
